@@ -1,25 +1,54 @@
-const { BrowserWindow, app } = require("electron");
+const { BrowserWindow, app:TREM } = require("electron");
 const path = require("path");
+const pushReceiver = require("electron-fcm-push-receiver");
+
+let MainWindow;
+let SettingWindow;
 
 function createWindow() {
-	const mainWindow = new BrowserWindow({
-		width          : 800,
-		height         : 600,
+	MainWindow = new BrowserWindow({
+		title          : "TREM-Plus",
+		width          : 1280,
+		minWidth       : 1280,
+		height         : 720,
+		minHeight      : 720,
+		resizable      : true,
+		icon           : "TREM.ico",
 		webPreferences : {
-			preload: path.join(__dirname, "preload.js"),
+			preload          : path.join(__dirname, "preload.js"),
+			nodeIntegration  : true,
+			contextIsolation : false,
 		},
 	});
-	mainWindow.loadFile("./view/index.html");
+	require("@electron/remote/main").initialize();
+	require("@electron/remote/main").enable(MainWindow.webContents);
+	MainWindow.loadFile("./view/index.html");
+	MainWindow.setAspectRatio(16 / 9);
+	// MainWindow.setMenu(null);
+	pushReceiver.setup(MainWindow.webContents);
+	MainWindow.on("close", (event) => {
+		if (!TREM.isQuiting) {
+			event.preventDefault();
+			MainWindow.hide();
+
+			if (SettingWindow)
+				SettingWindow.close();
+			event.returnValue = false;
+		} else
+			TREM.quit();
+	});
 }
 
-app.whenReady().then(() => {
-	createWindow();
+const shouldQuit = TREM.requestSingleInstanceLock();
 
-	app.on("activate", () => {
-		if (BrowserWindow.getAllWindows().length === 0) createWindow();
+if (!shouldQuit)
+	TREM.quit();
+else {
+	TREM.on("second-instance", (event, argv, cwd) => {
+		if (MainWindow != null) MainWindow.show();
 	});
-});
-
-app.on("window-all-closed", () => {
-	if (process.platform !== "darwin") app.quit();
-});
+	TREM.whenReady().then(() => {
+		// trayIcon();
+		createWindow();
+	});
+}
